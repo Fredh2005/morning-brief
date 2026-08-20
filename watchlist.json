@@ -1,0 +1,14 @@
+{
+  "_comment": "Edit this list to change what the brief covers. 'symbol' is the Yahoo Finance ticker; 'name' is what appears on the page. LSE listings take a .L suffix.",
+  "holdings": [
+    {"symbol": "AAPL",   "name": "Apple",                   "label": "AAPL"},
+    {"symbol": "NVDA",   "name": "NVIDIA",                  "label": "NVDA"},
+    {"symbol": "MSFT",   "name": "Microsoft",               "label": "MSFT"},
+    {"symbol": "GOOG",   "name": "Alphabet",                "label": "GOOG"},
+    {"symbol": "AMZN",   "name": "Amazon",                  "label": "AMZN"},
+    {"symbol": "MU",     "name": "Micron",                  "label": "MU"},
+    {"symbol": "BE",     "name": "Bloom Energy",            "label": "BE"},
+    {"symbol": "NBIS",   "name": "Nebius",                  "label": "NBIS"},
+    {"symbol": "VWRP.L", "name": "Vanguard FTSE All-World", "label": "VWRP"}
+  ]
+}

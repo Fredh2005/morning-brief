@@ -1,0 +1,98 @@
+name: Build the morning brief
+
+# Deliberately scheduled for 05:00 UK, not 07:00. GitHub's scheduler does not
+# run crons on time - on this account it has started them over an hour late -
+# so aiming at 07:00 would routinely publish after the brief was wanted. Two
+# hours of slack means a late run is still an early brief.
+#
+# Two crons cover the UK clock change and the guard below drops the wrong one.
+# The guard keys off WHICH cron fired, never the wall clock at run time: a
+# delayed run reads the wrong hour and would silently skip the real firing while
+# still reporting success.
+on:
+  schedule:
+    - cron: "0 4 * * 1-5"    # 05:00 UK during British Summer Time
+    - cron: "0 5 * * 1-5"    # 05:00 UK during GMT
+  workflow_dispatch:         # manual "Run workflow" button, always proceeds
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - id: check
+        run: |
+          echo "UK local time is now $(TZ=Europe/London date '+%Y-%m-%d %H:%M %Z')"
+          echo "Fired by cron: '${{ github.event.schedule }}'"
+          if [ "$(TZ=Europe/London date +%z)" = "+0100" ]; then
+            WANTED="0 4 * * 1-5"   # BST: 04:00 UTC is 05:00 UK
+          else
+            WANTED="0 5 * * 1-5"   # GMT: 05:00 UTC is 05:00 UK
+          fi
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "Manual run - proceeding."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "$WANTED" ]; then
+            echo "This is the 05:00 UK firing - proceeding."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Off-season cron ('${{ github.event.schedule }}') - skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      - name: Build the brief
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -W ignore build.py
+
+      - name: Fail if the page came back thin
+        run: |
+          # A brief that renders but says nothing is worse than a visible red X.
+          BYTES=$(wc -c < site/index.html)
+          echo "index.html is $BYTES bytes"
+          if [ "$BYTES" -lt 4000 ]; then
+            echo "::error::index.html is only $BYTES bytes - not publishing."
+            exit 1
+          fi
+          for f in manifest.webmanifest sw.js icon-192.png apple-touch-icon.png; do
+            [ -s "site/$f" ] || { echo "::error::site/$f missing or empty"; exit 1; }
+          done
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

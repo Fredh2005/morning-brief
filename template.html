@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Morning Brief — {{DATE}}</title>
+<meta name="description" content="A daily market brief: watchlist, movers and headlines, rebuilt every weekday morning.">
+<meta name="theme-color" content="#FCFCFB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16161A" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Morning Brief">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root {
+  --bg: #FCFCFB;
+  --panel: #F5F4F0;
+  --ink: #23211D;
+  --soft: #6B6A63;
+  --faint: #A5A49B;
+  --line: #E4E3DC;
+  --up: #1F7A4D;
+  --down: #B23A2F;
+  --accent: #C6613F;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16161A;
+    --panel: #1E1E23;
+    --ink: #EDEBE6;
+    --soft: #A3A199;
+    --faint: #6E6C66;
+    --line: #2C2C32;
+    --up: #4FBE85;
+    --down: #E4705F;
+    --accent: #E08560;
+  }
+}
+* { box-sizing: border-box; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.wrap { max-width: 640px; margin: 0 auto; padding: 28px 20px 64px; }
+
+header { margin-bottom: 28px; }
+h1 {
+  font: 600 15px/1 -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: .09em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 10px;
+}
+.date { font-size: 26px; font-weight: 600; letter-spacing: -.015em; margin: 0; }
+.stamp { color: var(--faint); font-size: 13px; margin: 4px 0 0; }
+
+h2 {
+  font: 600 12px/1 -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint);
+  margin: 40px 0 14px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.prose p { margin: 0 0 14px; color: var(--ink); }
+.prose p:last-child { margin-bottom: 0; }
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+tbody tr { border-bottom: 1px solid var(--line); }
+tbody tr:last-child { border-bottom: none; }
+td { padding: 11px 0; vertical-align: baseline; }
+td.name { font-weight: 500; }
+td.name small { display: block; color: var(--faint); font-weight: 400; font-size: 12px;
+  letter-spacing: .04em; margin-top: 1px; }
+td.px { text-align: right; white-space: nowrap; color: var(--soft); font-size: 15px; }
+td.pct { text-align: right; white-space: nowrap; font-weight: 600; width: 82px; font-size: 15px; }
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--faint); }
+.na { color: var(--faint); font-style: italic; font-size: 13px; font-weight: 400; }
+
+.earnings { background: var(--panel); border-radius: 10px; padding: 14px 16px; margin-top: 16px; }
+.earnings div { font-size: 14px; color: var(--soft); padding: 3px 0; }
+.earnings strong { color: var(--ink); font-weight: 600; }
+
+.news li { margin-bottom: 15px; list-style: none; }
+.news ul { padding: 0; margin: 0; }
+.news a { color: var(--ink); text-decoration: none; font-weight: 500;
+  border-bottom: 1px solid var(--line); }
+.news a:hover { border-bottom-color: var(--accent); }
+.news .src { display: block; color: var(--faint); font-size: 12px; margin-top: 3px; }
+.topic { font-weight: 600; font-size: 14px; margin: 22px 0 10px; color: var(--soft); }
+.topic:first-child { margin-top: 0; }
+
+.note { color: var(--faint); font-size: 13px; line-height: 1.55;
+  margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); }
+.note a { color: var(--faint); }
+.warn { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Morning Brief</h1>
+  <p class="date">{{DATE}}</p>
+  <p class="stamp">{{STAMP}}</p>
+</header>
+{{BODY}}
+<div class="note">{{NOTE}}</div>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
