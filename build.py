@@ -1,14 +1,14 @@
 """Assemble the morning brief into site/index.html.
 
-    python3 build.py              # full build, needs ANTHROPIC_API_KEY
-    python3 build.py --no-llm     # prices only, for checking layout offline
+    python3 build.py
 
-Everything the model or the market hands us is escaped before it reaches the
-page, and a build that cannot get prices fails loudly rather than publishing a
-half-empty brief — a silently wrong page is worse than a visible red X.
+No API keys and no accounts: prices and earnings dates come from Yahoo Finance,
+headlines from Yahoo's public RSS, and the prose is composed from those numbers
+rather than written by a model. A build that cannot get prices fails loudly
+rather than publishing a half-empty page — a silently wrong brief is worse than
+a visible red X.
 """
 
-import argparse
 import html
 import shutil
 import sys
@@ -16,17 +16,21 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import feeds
+import narrate
 import prices
 
 LONDON = ZoneInfo("Europe/London")
 OUT = Path("site")
 ASSETS = ["manifest.webmanifest", "sw.js", "icon-192.png", "icon-512.png", "apple-touch-icon.png"]
+MAX_LINKS = 8
 
 NOTE = (
-    "Prices from Yahoo Finance, delayed and shown as the last two daily closes. "
-    "Headlines found by Claude with web search; every link is one search actually "
-    "returned. Prose written by Claude from the data above &mdash; check anything that "
-    "matters before you act on it. Nothing here is investment advice."
+    "Prices and earnings dates from Yahoo Finance, shown as the last two daily "
+    "closes and delayed. Headlines from Yahoo's news feeds. The summary is "
+    "assembled from those numbers, not written by anyone &mdash; it says what moved "
+    "and links the story, and does not claim to know why. Nothing here is "
+    "investment advice."
 )
 
 
@@ -60,89 +64,88 @@ def watchlist_table(rows):
     return "\n".join(out)
 
 
-def upcoming_panel(items):
-    if not items:
+def upcoming_panel(lines):
+    if not lines:
         return ""
-    lines = "\n".join(f"<div>{esc(i)}</div>" for i in items)
-    return f'<div class="earnings">\n{lines}\n</div>'
+    body = "\n".join(
+        f"<div>{esc(line)}</div>" for line in lines
+    )
+    return f'<div class="earnings">\n{body}\n</div>'
 
 
-def headlines_block(topics):
-    if not topics:
+def headlines_block(rows, movers, headlines):
+    """Grouped by holding, whatever moved most first."""
+    if not headlines:
         return ""
+
+    order = [m["symbol"] for m in movers]
+    order += [r["symbol"] for r in rows if r["symbol"] not in order]
+
     out = ['<h2>Headlines</h2><div class="news">']
-    for topic in topics:
-        items = []
-        for item in topic["items"]:
+    used = 0
+    for symbol in order:
+        items = headlines.get(symbol)
+        if not items or used >= MAX_LINKS:
+            continue
+        name = next((r["name"] for r in rows if r["symbol"] == symbol), symbol)
+        rendered = []
+        for item in items:
+            if used >= MAX_LINKS:
+                break
             url = safe_url(item["url"])
             if not url:
                 continue
-            items.append(
+            rendered.append(
                 f'<li><a href="{url}" rel="noopener noreferrer" target="_blank">'
                 f'{esc(item["title"])}</a>'
                 f'<span class="src">{esc(item["source"])}</span></li>'
             )
-        if not items:
-            continue
-        out.append(f'<div class="topic">{esc(topic["topic"])}</div><ul>')
-        out.extend(items)
-        out.append("</ul>")
+            used += 1
+        if rendered:
+            out.append(f'<div class="topic">{esc(name)}</div><ul>')
+            out.extend(rendered)
+            out.append("</ul>")
     out.append("</div>")
-    return "\n".join(out)
-
-
-def build_body(rows, written):
-    parts = ["<h2>Watchlist</h2>"]
-    if written and written.get("watchlist_prose"):
-        parts.append(f'<div class="prose">{paragraphs(written["watchlist_prose"])}</div>')
-    parts.append(watchlist_table(rows))
-    if written:
-        parts.append(upcoming_panel(written.get("upcoming", [])))
-        if written.get("macro_prose"):
-            parts.append("<h2>Markets &amp; macro</h2>")
-            parts.append(f'<div class="prose">{paragraphs(written["macro_prose"])}</div>')
-        parts.append(headlines_block(written.get("headlines", [])))
-    return "\n".join(p for p in parts if p)
+    return "\n".join(out) if used else ""
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--no-llm", action="store_true",
-                    help="skip the Claude calls; render prices only")
-    args = ap.parse_args()
-
     now = datetime.now(LONDON)
     date_label = f"{now:%A} {now.day} {now:%B}"
-
     print(f"building brief for {date_label}")
-    rows = prices.fetch(prices.load_watchlist())
+
+    holdings = prices.load_watchlist()
+    rows = prices.fetch(holdings)
 
     priced = [r for r in rows if r["price"] is not None]
     if len(priced) < max(2, len(rows) // 2):
         sys.exit(f"only {len(priced)} of {len(rows)} holdings priced - not publishing")
     print(f"  priced {len(priced)}/{len(rows)} holdings")
 
-    moved = prices.movers(rows)
-    print(f"  movers: {[m['label'] for m in moved] or 'none'}")
+    movers = prices.movers(rows)
+    print(f"  movers: {[m['label'] for m in movers] or 'none'}")
 
-    written = None
-    if not args.no_llm:
-        import brief
-        written = brief.generate(
-            date_label, rows, moved, prices.format_price, prices.format_change
-        )
-        n = sum(len(t["items"]) for t in written.get("headlines", []))
-        print(f"  wrote {len(written.get('watchlist_prose', []))} watchlist paragraph(s), "
-              f"{n} headline link(s)")
+    headlines = feeds.for_holdings(holdings)
+    print(f"  headlines for {len(headlines)} holding(s)")
 
-    stamp = f"Built {now:%H:%M %Z}"
-    if args.no_llm:
-        stamp += " &middot; prices only"
+    earnings = feeds.earnings_dates(holdings)
+    print(f"  upcoming: {[e['name'] for e in earnings] or 'none'}")
+
+    body = "\n".join(part for part in [
+        "<h2>Watchlist</h2>",
+        f'<div class="prose">{paragraphs(narrate.watchlist_prose(rows, movers, headlines))}</div>',
+        watchlist_table(rows),
+        upcoming_panel(narrate.upcoming(earnings)),
+        "<h2>Markets</h2>" if narrate.market_prose(rows) else "",
+        f'<div class="prose">{paragraphs(narrate.market_prose(rows))}</div>'
+        if narrate.market_prose(rows) else "",
+        headlines_block(rows, movers, headlines),
+    ] if part)
 
     page = (Path("template.html").read_text()
             .replace("{{DATE}}", esc(date_label))
-            .replace("{{STAMP}}", stamp)
-            .replace("{{BODY}}", build_body(rows, written))
+            .replace("{{STAMP}}", f"Built {now:%H:%M %Z}")
+            .replace("{{BODY}}", body)
             .replace("{{NOTE}}", NOTE))
 
     OUT.mkdir(exist_ok=True)

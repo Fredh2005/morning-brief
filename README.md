@@ -12,14 +12,21 @@ Add it to your home screen and it behaves like an app.
 |---|---|
 | `watchlist.json` | The list of holdings. Edit this to change what the brief covers. |
 | `prices.py` | Last two daily closes per holding, from Yahoo Finance. No API key. |
-| `brief.py` | Claude researches the moves with web search, then reshapes the findings into a fixed schema. |
+| `feeds.py` | Headlines per holding from Yahoo's public RSS, plus upcoming earnings dates. |
+| `narrate.py` | The written summary, composed from the numbers rather than by a model. |
 | `build.py` | Puts the page together into `site/`. |
 | `template.html` | The page itself — light and dark, safe-area aware, PWA metadata. |
 | `make_icons.py` | Regenerates the home-screen icons. Run by hand; the PNGs are committed. |
 
-Every link on the page is one that web search actually returned — `brief.py` checks
-each URL against the search results and drops anything the model invented, rather
-than trusting it. Everything that reaches the page is HTML-escaped.
+No API keys, no accounts, nothing to keep topped up. Everything comes from Yahoo
+Finance: prices, earnings dates, and the news feeds behind the headline links.
+
+The summary is assembled, not written. It says what moved and by how much, and
+quotes the morning's headline on the biggest mover — preferring one that describes
+a move over the evergreen "Is X a buy?" pieces. It never claims to know *why*
+something moved, because nothing in this repo does; the link is the honest way to
+offer a reason. Everything that reaches the page is HTML-escaped, and only https
+links are emitted.
 
 ## The schedule
 
@@ -37,21 +44,19 @@ inactivity.
 
 ## Setup
 
-One secret is required: **`ANTHROPIC_API_KEY`**, under Settings → Secrets and
-variables → Actions. Pages must be set to deploy from **GitHub Actions**
-(Settings → Pages → Source).
+No secrets. The only setting is Pages: Settings → Pages → Source → **GitHub
+Actions**.
 
 ## Running it locally
 
 ```bash
 pip install -r requirements.txt
-python3 build.py --no-llm     # prices only, no API key needed
-python3 build.py              # the real thing
+python3 build.py
 open site/index.html
 ```
 
 ## What it will not do
 
-It reports; it does not advise. No buy/sell/hold, no valuation calls, no forecasts.
-An analyst's view appears only as a fact about what that analyst said. Prices are
-delayed daily closes, not live quotes.
+It reports; it does not advise. No buy/sell/hold, no valuation calls, no forecasts,
+and no explanation of cause it cannot actually support. Prices are delayed daily
+closes, not live quotes.
