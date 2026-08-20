@@ -13,6 +13,14 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
+<script>
+try {
+  var saved = localStorage.getItem("morning-brief-theme");
+  if (saved === "dark" || saved === "light") {
+    document.documentElement.setAttribute("data-theme", saved);
+  }
+} catch (e) {}
+</script>
 <style>
 :root {
   --bg: #FCFCFB;
@@ -26,17 +34,28 @@
   --accent: #C6613F;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16161A;
-    --panel: #1E1E23;
-    --ink: #EDEBE6;
-    --soft: #A3A199;
-    --faint: #6E6C66;
-    --line: #2C2C32;
-    --up: #4FBE85;
-    --down: #E4705F;
-    --accent: #E08560;
+  :root:not([data-theme=light]) {
+  --bg: #16161A;
+  --panel: #1E1E23;
+  --ink: #EDEBE6;
+  --soft: #A3A199;
+  --faint: #6E6C66;
+  --line: #2C2C32;
+  --up: #4FBE85;
+  --down: #E4705F;
+  --accent: #E08560;
   }
+}
+:root[data-theme=dark] {
+  --bg: #16161A;
+  --panel: #1E1E23;
+  --ink: #EDEBE6;
+  --soft: #A3A199;
+  --faint: #6E6C66;
+  --line: #2C2C32;
+  --up: #4FBE85;
+  --down: #E4705F;
+  --accent: #E08560;
 }
 * { box-sizing: border-box; -webkit-text-size-adjust: 100%; }
 body {
@@ -49,7 +68,16 @@ body {
 }
 .wrap { max-width: 640px; margin: 0 auto; padding: 28px 20px 64px; }
 
-header { margin-bottom: 28px; }
+header { margin-bottom: 28px; position: relative; }
+.themebtn {
+  position: absolute; top: 2px; right: 0;
+  background: var(--panel); color: var(--faint);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 5px 11px; font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase;
+  font-family: inherit; cursor: pointer;
+}
+.themebtn:hover { color: var(--accent); border-color: var(--accent); }
 h1 {
   font: 600 15px/1 -apple-system, "Segoe UI", sans-serif;
   letter-spacing: .09em; text-transform: uppercase;
@@ -104,6 +132,7 @@ td.pct { text-align: right; white-space: nowrap; font-weight: 600; width: 82px; 
 <body>
 <div class="wrap">
 <header>
+  <button id="theme" class="themebtn" type="button" aria-label="Switch theme"></button>
   <h1>Morning Brief</h1>
   <p class="date">{{DATE}}</p>
   <p class="stamp">{{STAMP}}</p>
@@ -112,6 +141,29 @@ td.pct { text-align: right; white-space: nowrap; font-weight: 600; width: 82px; 
 <div class="note">{{NOTE}}</div>
 </div>
 <script>
+(function () {
+  var btn = document.getElementById("theme");
+  var root = document.documentElement;
+  var labels = { auto: "Auto", light: "Light", dark: "Dark" };
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  var mode = store.get("morning-brief-theme") || "auto";
+  if (!labels[mode]) mode = "auto";
+  function apply() {
+    if (mode === "auto") { root.removeAttribute("data-theme"); }
+    else { root.setAttribute("data-theme", mode); }
+    btn.textContent = labels[mode];
+    store.set("morning-brief-theme", mode);
+  }
+  btn.onclick = function () {
+    mode = mode === "auto" ? "dark" : mode === "dark" ? "light" : "auto";
+    apply();
+  };
+  apply();
+})();
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
