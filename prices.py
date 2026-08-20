@@ -7,6 +7,7 @@ one price missing is far better than one that fails to build at all.
 
 import json
 import math
+import time
 from pathlib import Path
 
 import yfinance as yf
@@ -19,6 +20,47 @@ def load_watchlist(path="watchlist.json"):
     return [h for h in data["holdings"]]
 
 
+def _bulk_closes(symbols, attempts=3):
+    """Closing prices for every symbol at once, or None if Yahoo won't play.
+
+    Returns None rather than raising: a single missing frame should fall through
+    to the per-symbol path below, not end the build.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            frame = yf.download(
+                symbols, period="7d", interval="1d",
+                progress=False, auto_adjust=False, threads=False,
+            )
+        except Exception as exc:
+            print(f"  bulk download attempt {attempt} failed: {type(exc).__name__}: {exc}")
+            frame = None
+        if frame is not None and not frame.empty and "Close" in frame:
+            return frame["Close"]
+        if attempt < attempts:
+            time.sleep(2 * attempt)
+    print("  bulk download gave nothing usable - falling back per symbol")
+    return None
+
+
+def _closes_for(frame, symbol):
+    """The close series for one symbol, from the bulk frame or fetched alone."""
+    if frame is not None:
+        try:
+            series = frame[symbol].dropna()
+            if len(series) >= 2:
+                return series
+        except (KeyError, IndexError):
+            pass
+    try:
+        history = yf.Ticker(symbol).history(period="7d", auto_adjust=False)
+        if history is not None and "Close" in history:
+            return history["Close"].dropna()
+    except Exception as exc:
+        print(f"  no prices for {symbol}: {type(exc).__name__}")
+    return None
+
+
 def fetch(holdings):
     """Return one row per holding: price, previous close, percent change.
 
@@ -27,17 +69,12 @@ def fetch(holdings):
     shorter table.
     """
     symbols = [h["symbol"] for h in holdings]
-    frame = yf.download(
-        symbols, period="7d", interval="1d", progress=False, auto_adjust=False
-    )["Close"]
+    frame = _bulk_closes(symbols)
 
     rows = []
     for h in holdings:
         row = dict(h, price=None, prev=None, change=None, currency=None)
-        try:
-            series = frame[h["symbol"]].dropna()
-        except KeyError:
-            series = None
+        series = _closes_for(frame, h["symbol"])
 
         if series is not None and len(series) >= 2:
             last, prev = float(series.iloc[-1]), float(series.iloc[-2])

@@ -1,3 +1,10 @@
-yfinance>=0.2.40
-pandas>=2.0
-pillow>=10.0
+# Pinned deliberately. The first CI run failed because the runner resolved
+# pandas 3.0 and yfinance 1.6 while this code had only ever been exercised
+# against pandas 2.x - a major pandas release is not something to discover at
+# five in the morning. Widen these on purpose, never by accident.
+yfinance>=1.2,<1.3
+pandas>=2.2,<3.0
+tzdata>=2024.1          # so zoneinfo("Europe/London") resolves on any runner
+
+# Pillow is only needed by make_icons.py, which is run by hand and whose output
+# is committed. CI never imports it.
